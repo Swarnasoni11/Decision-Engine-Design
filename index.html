@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Engine — Political Science Interview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --card: #1c2028;
+    --border: #2a2f3d;
+    --accent: #4f9cf9;
+    --accent-dim: #1a3a6b;
+    --green: #3ecf8e;
+    --green-dim: #0f3d26;
+    --amber: #f59e0b;
+    --amber-dim: #3d2700;
+    --red: #f87171;
+    --red-dim: #3d1111;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Sora', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .nav-brand { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
+  .nav-brand span { color: var(--accent); }
+  .nav-tabs { display: flex; gap: 4px; }
+  .tab-btn {
+    padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    background: transparent; color: var(--muted); transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--accent-dim); color: var(--accent); }
+  .tab-btn:hover:not(.active) { background: var(--card); color: var(--text); }
+  .nav-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Layout ── */
+  .page { display: none; }
+  .page.active { display: block; }
+  .two-col { display: grid; grid-template-columns: 1fr 380px; gap: 0; min-height: calc(100vh - 56px); }
+
+  /* ── Candidate Panel ── */
+  .candidate-panel {
+    padding: 2rem;
+    border-right: 1px solid var(--border);
+  }
+  .session-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+  .session-title { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .progress-bar-wrap { background: var(--border); border-radius: 999px; height: 4px; flex: 1; margin: 0 1rem; }
+  .progress-bar { height: 4px; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
+  .q-counter { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  .diff-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; font-family: var(--mono);
+    margin-bottom: 1.5rem;
+  }
+  .diff-badge.easy   { background: var(--green-dim); color: var(--green); }
+  .diff-badge.medium { background: var(--amber-dim); color: var(--amber); }
+  .diff-badge.hard   { background: var(--red-dim);   color: var(--red);   }
+
+  .topic-label { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5rem; }
+  .question-text {
+    font-size: 20px; font-weight: 400; line-height: 1.55; color: var(--text);
+    margin-bottom: 2rem; letter-spacing: -0.01em;
+  }
+
+  .options { display: grid; gap: 10px; margin-bottom: 1.5rem; }
+  .opt {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--card);
+    cursor: pointer; transition: all 0.15s; text-align: left;
+    font-family: var(--sans); font-size: 14px; color: var(--text);
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-dim); }
+  .opt.correct { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+  .opt.wrong   { border-color: var(--red);   background: var(--red-dim);   color: var(--red);   }
+  .opt:disabled { cursor: default; }
+  .opt-key { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 18px; margin-top: 1px; }
+  .opt.correct .opt-key { color: var(--green); }
+  .opt.wrong   .opt-key { color: var(--red); }
+
+  .feedback-box {
+    padding: 12px 16px; border-radius: 8px; font-size: 13px; line-height: 1.6;
+    margin-bottom: 1rem; display: none;
+  }
+  .feedback-box.show { display: block; }
+  .feedback-box.good { background: var(--green-dim); color: var(--green); border: 1px solid #1a5c39; }
+  .feedback-box.bad  { background: var(--red-dim);   color: var(--red);   border: 1px solid #5c1a1a; }
+
+  .next-btn {
+    padding: 10px 24px; border-radius: 8px; border: 1px solid var(--accent);
+    background: var(--accent-dim); color: var(--accent); font-family: var(--sans);
+    font-size: 14px; font-weight: 500; cursor: pointer; display: none;
+    transition: all 0.15s;
+  }
+  .next-btn:hover { background: var(--accent); color: #fff; }
+  .next-btn.show { display: inline-block; }
+
+  .answer-input {
+    width: 100%; padding: 12px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--card);
+    color: var(--text); font-family: var(--sans); font-size: 14px;
+    resize: vertical; min-height: 100px; margin-bottom: 1rem;
+    outline: none; transition: border-color 0.15s;
+  }
+  .answer-input:focus { border-color: var(--accent); }
+
+  /* ── Admin Panel ── */
+  .admin-panel { padding: 1.5rem; background: var(--surface); overflow-y: auto; }
+  .admin-title { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem; }
+
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1.5rem; }
+  .metric {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .metric-label { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 4px; }
+  .metric-val { font-size: 22px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .metric-val.green { color: var(--green); }
+  .metric-val.amber { color: var(--amber); }
+  .metric-val.red   { color: var(--red);   }
+  .metric-val.blue  { color: var(--accent); }
+
+  .score-bars { margin-bottom: 1.5rem; }
+  .score-row { margin-bottom: 10px; }
+  .score-row-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-family: var(--mono); margin-bottom: 4px; }
+  .bar-track { background: var(--border); border-radius: 999px; height: 6px; }
+  .bar-fill { height: 6px; border-radius: 999px; transition: width 0.5s ease; }
+  .bar-fill.correctness { background: var(--accent); }
+  .bar-fill.depth       { background: var(--green); }
+  .bar-fill.clarity     { background: var(--amber); }
+
+  .engine-log-panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .log-entries { font-family: var(--mono); font-size: 11px; max-height: 260px; overflow-y: auto; }
+  .log-entry { padding: 3px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--muted); white-space: nowrap; }
+  .log-msg { color: var(--text); }
+  .log-msg.green { color: var(--green); }
+  .log-msg.amber { color: var(--amber); }
+  .log-msg.red   { color: var(--red); }
+  .log-msg.blue  { color: var(--accent); }
+
+  /* ── History table ── */
+  .history-wrap { overflow-x: auto; }
+  .history-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+  .history-table th { text-align: left; padding: 8px 10px; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 500; }
+  .history-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .history-table tr:last-child td { border-bottom: none; }
+
+  /* ── Ended screen ── */
+  .ended-screen { display: none; padding: 3rem 2rem; text-align: center; }
+  .ended-screen.show { display: block; }
+  .ended-title { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
+  .ended-sub { color: var(--muted); font-size: 14px; margin-bottom: 2rem; }
+  .final-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto; }
+  .restart-btn {
+    padding: 12px 32px; border-radius: 8px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; font-family: var(--sans);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .restart-btn:hover { opacity: 0.85; }
+
+  /* ── Admin standalone page ── */
+  .admin-page { padding: 2rem; }
+  .admin-page-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 2rem; }
+  .big-metric { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+  .big-metric-label { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; }
+  .big-metric-val { font-size: 30px; font-weight: 600; font-family: var(--mono); }
+  .section-header { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 1rem; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .two-admin { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .admin-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Decision<span>Engine</span></div>
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('interview')">Interview</button>
+    <button class="tab-btn" onclick="switchTab('admin')">Admin dashboard</button>
+  </div>
+  <div class="nav-status"><div class="dot"></div>Engine active</div>
+</nav>
+
+<!-- ═══════════════ INTERVIEW PAGE ═══════════════ -->
+<div class="page active" id="page-interview">
+  <div class="two-col">
+
+    <!-- Candidate side -->
+    <div class="candidate-panel">
+      <div id="quiz-wrap">
+        <div class="session-header">
+          <span class="session-title" id="sess-label">Session · Q1</span>
+          <div class="progress-bar-wrap"><div class="progress-bar" id="prog-bar" style="width:10%"></div></div>
+          <span class="q-counter" id="q-counter">1 / 10</span>
+        </div>
+
+        <div class="diff-badge easy" id="diff-badge">easy</div>
+        <div class="topic-label" id="topic-label">ML Basics</div>
+        <div class="question-text" id="q-text">Loading question...</div>
+
+        <div class="options" id="options-wrap"></div>
+        <div class="feedback-box" id="feedback"></div>
+        <button class="next-btn" id="next-btn" onclick="nextQuestion()">Next question →</button>
+      </div>
+
+      <div class="ended-screen" id="ended">
+        <div class="ended-title" id="ended-title">Session complete</div>
+        <div class="ended-sub" id="ended-sub"></div>
+        <div class="final-grid" id="final-grid"></div>
+        <button class="restart-btn" onclick="initSession()">Start new session</button>
+      </div>
+    </div>
+
+    <!-- Admin side -->
+    <div class="admin-panel">
+      <div class="admin-title">Engine monitor</div>
+
+      <div class="metric-grid">
+        <div class="metric"><div class="metric-label">Score</div><div class="metric-val blue" id="m-score">0</div></div>
+        <div class="metric"><div class="metric-label">Streak</div><div class="metric-val green" id="m-streak">0</div></div>
+        <div class="metric"><div class="metric-label">Difficulty</div><div class="metric-val" id="m-diff">Easy</div></div>
+        <div class="metric"><div class="metric-label">Accuracy</div><div class="metric-val" id="m-acc">—</div></div>
+      </div>
+
+      <div class="admin-title">Avg scores</div>
+      <div class="score-bars" id="score-bars">
+        <div class="score-row">
+          <div class="score-row-label"><span>Correctness</span><span id="b-cor">—</span></div>
+          <div class="bar-track"><div class="bar-fill correctness" id="bar-cor" style="width:0%"></div></div>
+        </div>
+        <div class="score-row">
+          <div class="score-row-label"><span>Depth</span><span id="b-dep">—</span></div>
+          <div class="bar-track"><div class="bar-fill depth" id="bar-dep" style="width:0%"></div></div>
+        </div>
+        <div class="score-row">
+          <div class="score-row-label"><span>Clarity</span><span id="b-cla">—</span></div>
+          <div class="bar-track"><div class="bar-fill clarity" id="bar-cla" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="admin-title" style="margin-bottom:0.75rem">Decision log</div>
+      <div class="engine-log-panel">
+        <div class="log-entries" id="log-entries"></div>
+      </div>
+
+      <div class="admin-title" style="margin-top:1.5rem;margin-bottom:0.75rem">Question history</div>
+      <div class="history-wrap">
+        <table class="history-table">
+          <thead><tr><th>#</th><th>Topic</th><th>Diff</th><th>Score</th></tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADMIN PAGE ═══════════════ -->
+<div class="page" id="page-admin">
+  <div class="admin-page">
+    <div class="admin-page-grid">
+      <div class="big-metric"><div class="big-metric-label">Total questions</div><div class="big-metric-val blue" id="a-total">0</div></div>
+      <div class="big-metric"><div class="big-metric-label">Avg overall</div><div class="big-metric-val green" id="a-avg">—</div></div>
+      <div class="big-metric"><div class="big-metric-label">Final difficulty</div><div class="big-metric-val" id="a-diff">Easy</div></div>
+      <div class="big-metric"><div class="big-metric-label">Hard correct</div><div class="big-metric-val amber" id="a-hard">0</div></div>
+    </div>
+
+    <div class="two-admin">
+      <div class="admin-card">
+        <div class="section-header">Difficulty progression</div>
+        <canvas id="diff-chart" height="180"></canvas>
+      </div>
+      <div class="admin-card">
+        <div class="section-header">Score breakdown per question</div>
+        <canvas id="score-chart" height="180"></canvas>
+      </div>
+    </div>
+
+    <div class="admin-card" style="margin-top:1.5rem">
+      <div class="section-header">Full decision log</div>
+      <div class="log-entries" style="max-height:300px" id="full-log"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const QUESTIONS = {
+  easy: [
+    { id:'e1', topic:'World Governments', text:'What type of government does the United Kingdom have?', opts:['Presidential republic','Constitutional monarchy','Federal republic','One-party state'], ans:1, exp:'The UK is a constitutional monarchy where the monarch is head of state and a Prime Minister leads the government.' },
+    { id:'e2', topic:'United Nations',    text:'How many permanent members does the UN Security Council have?', opts:['3','5','7','10'], ans:1, exp:'The five permanent members (P5) are the USA, UK, France, Russia, and China — each holding veto power.' },
+    { id:'e3', topic:'Elections',         text:'What is a referendum?', opts:['A parliamentary debate','A direct vote by the public on a specific issue','A type of political party','An election of the head of state'], ans:1, exp:'A referendum is a direct vote in which the electorate is asked to vote on a particular political question.' },
+    { id:'e4', topic:'World Leaders',     text:'Who is the head of government in India?', opts:['President','Prime Minister','Chief Minister','Speaker'], ans:1, exp:'India has a parliamentary system where the Prime Minister is the head of government, while the President is the ceremonial head of state.' },
+    { id:'e5', topic:'International Org', text:'What does NATO stand for?', opts:['North Atlantic Treaty Organization','National Alliance for Trade Operations','Nordic Atomic Treaty Order','North American Trade Organization'], ans:0, exp:'NATO — North Atlantic Treaty Organization — is a military alliance formed in 1949.' },
+    { id:'e6', topic:'Democracy',         text:'What is the main feature of a democracy?', opts:['Rule by a single party','Citizens vote to choose their leaders','Power held by the military','Decisions made by religious leaders'], ans:1, exp:'In a democracy, citizens elect their representatives through free and fair elections.' },
+    { id:'e7', topic:'Indian Polity',     text:'How many houses does the Indian Parliament have?', opts:['One','Two','Three','Four'], ans:1, exp:'Indian Parliament has two houses — Lok Sabha (lower house) and Rajya Sabha (upper house).' },
+    { id:'e8', topic:'World Capitals',    text:'What is the capital of the United States?', opts:['New York','Los Angeles','Washington D.C.','Chicago'], ans:2, exp:'Washington D.C. (District of Columbia) is the capital and seat of the federal government of the USA.' },
+    { id:'e9', topic:'Political Terms',   text:'What does "veto" mean in politics?', opts:['A vote in favor','A right to block a decision','A type of election','A diplomatic agreement'], ans:1, exp:'Veto is the power to unilaterally stop an official action, used notably by P5 members in the UN Security Council.' },
+    { id:'e10',topic:'Elections',         text:'What is the minimum voting age in India?', opts:['16','18','21','25'], ans:1, exp:'The 61st Constitutional Amendment (1989) lowered the voting age from 21 to 18 in India.' },
+  ],
+  medium: [
+    { id:'m1', topic:'Indian Constitution', text:'Which article of the Indian Constitution abolishes untouchability?', opts:['Article 14','Article 17','Article 21','Article 32'], ans:1, exp:'Article 17 abolishes untouchability and forbids its practice in any form.' },
+    { id:'m2', topic:'International Relations', text:'What is the "balance of power" concept in international relations?', opts:['Economic equality between nations','A state where no single nation dominates others','Military strength of a single superpower','A trade agreement between countries'], ans:1, exp:'Balance of power is a theory where states prevent any one state from gaining hegemony by forming coalitions against it.' },
+    { id:'m3', topic:'Political Theory',    text:'Who wrote "The Social Contract"?', opts:['John Locke','Thomas Hobbes','Jean-Jacques Rousseau','Karl Marx'], ans:2, exp:'Jean-Jacques Rousseau wrote "Du Contrat Social" (1762), arguing that legitimate political authority comes from a social contract.' },
+    { id:'m4', topic:'Indian Polity',       text:'What is the term of a Rajya Sabha member?', opts:['2 years','4 years','5 years','6 years'], ans:3, exp:'Rajya Sabha members serve for 6 years, with one-third retiring every two years. The Rajya Sabha is a permanent house.' },
+    { id:'m5', topic:'Geopolitics',         text:'What is the "Monroe Doctrine"?', opts:['A European trade policy','A US foreign policy opposing European colonialism in the Americas','A nuclear non-proliferation treaty','A UN peacekeeping framework'], ans:1, exp:'The Monroe Doctrine (1823) declared that the Western Hemisphere was closed to further European colonization.' },
+    { id:'m6', topic:'Political Systems',   text:'What distinguishes a federal system from a unitary system?', opts:['Federal has no constitution','Federal divides power between central and regional governments','Unitary has two legislative chambers','Federal is always a democracy'], ans:1, exp:'In a federal system, sovereignty is shared between a central authority and constituent units (states/provinces).' },
+    { id:'m7', topic:'Indian Polity',       text:'Which body in India resolves disputes between the Centre and States?', opts:['Supreme Court','Inter-State Council','Finance Commission','Planning Commission'], ans:0, exp:'The Supreme Court of India has original jurisdiction in disputes between states, or between states and the Centre.' },
+    { id:'m8', topic:'Political Philosophy', text:'What is John Rawls\' "veil of ignorance" thought experiment?', opts:['Ignoring historical injustice','Designing a just society without knowing your place in it','Keeping judicial decisions secret','Hiding political affiliations'], ans:1, exp:'Rawls proposed that principles of justice should be chosen from behind a "veil of ignorance" — not knowing your wealth, status, or talents.' },
+    { id:'m9', topic:'Geopolitics',         text:'What is "soft power" in international relations?', opts:['Military force','Economic sanctions','Influence through culture, values, and diplomacy','Nuclear deterrence'], ans:2, exp:'Coined by Joseph Nye, soft power is the ability to shape preferences of others through appeal and attraction rather than coercion.' },
+    { id:'m10',topic:'Indian Constitution', text:'Which schedule of the Indian Constitution lists official languages?', opts:['Sixth Schedule','Seventh Schedule','Eighth Schedule','Ninth Schedule'], ans:2, exp:'The Eighth Schedule lists 22 officially recognized languages of India.' },
+  ],
+  hard: [
+    { id:'h1', topic:'Political Theory',    text:'How does Gramsci\'s concept of "hegemony" differ from coercive power?', opts:['Hegemony uses military force','Hegemony is control through dominant ideology and cultural consent','Hegemony relies only on economic power','Hegemony is a form of direct democracy'], ans:1, exp:'Gramsci argued ruling classes maintain power not just by force but by shaping the cultural and ideological norms that make their dominance seem natural and legitimate.' },
+    { id:'h2', topic:'Comparative Politics', text:'What is the key distinction between "consociational" and "majoritarian" democracies?', opts:['Consociational systems ban opposition parties','Consociational systems use elite power-sharing to manage divided societies','Majoritarian systems require coalition governments','Consociational systems give all power to the largest ethnic group'], ans:1, exp:'Arend Lijphart\'s consociationalism describes democracies that manage deep social divisions through elite cooperation, grand coalitions, mutual vetoes, and proportionality.' },
+    { id:'h3', topic:'International Law',   text:'What is the principle of "Responsibility to Protect" (R2P)?', opts:['Every nation must protect its nuclear assets','States have a responsibility to protect citizens; if they fail, the international community may intervene','R2P gives the UN veto over all military actions','It obligates developing nations to accept refugees'], ans:1, exp:'R2P (adopted 2005) holds that sovereignty entails responsibility — if a state fails to protect its people from genocide or war crimes, the international community has a responsibility to intervene.' },
+    { id:'h4', topic:'Indian Constitution', text:'What is the "basic structure doctrine" in Indian constitutional law?', opts:['The first three articles of the Constitution cannot be amended','Parliament cannot amend the Constitution at all','Certain fundamental features of the Constitution cannot be altered even by Parliament','The basic structure refers to financial provisions only'], ans:2, exp:'Established in Kesavananda Bharati v. State of Kerala (1973), the doctrine holds that Parliament can amend the Constitution but cannot destroy its "basic structure" — including judicial review, federalism, and fundamental rights.' },
+    { id:'h5', topic:'Geopolitics',         text:'What does "Thucydides Trap" describe in modern international relations?', opts:['Trade wars between superpowers','The tendency for a rising power and a dominant power to end up in war','Nuclear deterrence stability','Colonialism by powerful nations'], ans:1, exp:'Graham Allison coined the term based on Thucydides\' account of the Peloponnesian War — when a rising power threatens a ruling power, conflict becomes likely. Often applied to US-China relations.' },
+    { id:'h6', topic:'Political Economy',   text:'How does the "democratic peace theory" explain conflict avoidance?', opts:['Democracies have stronger militaries','Democracies are economically too interdependent to fight','Liberal democracies rarely go to war with each other due to shared norms and institutional constraints','All democracies are members of NATO'], ans:2, exp:'Democratic peace theory holds that liberal democracies almost never wage war against each other because of shared values, transparency, and domestic political constraints on leaders.' },
+    { id:'h7', topic:'Comparative Politics', text:'What is "path dependency" in the context of political institutions?', opts:['Countries always follow the same political development path','Institutions are shaped by historical choices in ways that constrain future options','Political parties always return to their original ideology','Countries adopt institutions from colonial powers'], ans:1, exp:'Path dependency means that once a country goes down a particular institutional path, it becomes progressively harder to change — prior choices lock in future trajectories even when circumstances change.' },
+    { id:'h8', topic:'Indian Polity',       text:'How does the "doctrine of colourable legislation" apply in India?', opts:['Parliament can colour-code laws by importance','A legislature cannot indirectly do what it cannot directly do within its competence','Courts can colour legislative intent as unconstitutional','It refers to laws passed after sunset'], ans:1, exp:'The doctrine prevents legislatures from circumventing constitutional limits — if a legislature lacks competence on a subject, it cannot achieve the same effect by disguising the law under another head of power.' },
+    { id:'h9', topic:'International Relations', text:'What is the "security dilemma" and why is it hard to resolve?', opts:['Nations have too many security agencies','One state\'s defensive buildup is perceived as a threat by others, triggering a cycle of arms races','Nuclear weapons make all nations secure','The UN fails to mediate conflicts'], ans:1, exp:'The security dilemma (Herz, 1950) describes how actions a state takes to increase its own security — even purely defensively — inevitably decrease the security of others, leading to escalating tension without any malicious intent.' },
+    { id:'h10',topic:'Political Philosophy', text:'How does Hannah Arendt\'s concept of "the banality of evil" challenge conventional views of political evil?', opts:['Evil is always planned by ideological fanatics','Ordinary people can commit evil through thoughtlessness and bureaucratic compliance rather than ideology','Political evil requires mass support to succeed','Only authoritarian systems produce evil acts'], ans:1, exp:'Arendt coined the phrase after observing Eichmann\'s trial — arguing that great evil can be perpetrated not by monsters but by ordinary bureaucrats who follow orders without thinking, raising profound questions about moral responsibility under authoritarian regimes.' },
+  ]
+};
+
+const MAX_Q=10, STREAK_UP=2, STREAK_DOWN=2, MASTERY_HARD=3, GIVE_UP_EASY=3, THRESHOLD=0.6;
+const DIFF_ORDER={easy:0,medium:1,hard:2};
+
+let state = {};
+let diffChart=null, scoreChart=null;
+
+function initSession() {
+  state = {
+    qIndex:0, score:0, streak:0, failStreak:0,
+    difficulty:'easy', hardCorrect:0,
+    usedIds:new Set(), log:[], evals:[],
+    asked:[]
+  };
+  document.getElementById('quiz-wrap').style.display='block';
+  document.getElementById('ended').classList.remove('show');
+  document.getElementById('hist-body').innerHTML='';
+  document.getElementById('log-entries').innerHTML='';
+  document.getElementById('full-log').innerHTML='';
+  resetMetrics();
+  addLog('Session started. Starting at easy difficulty.','blue');
+  addLog('Stop rules: max '+MAX_Q+' questions | mastery='+MASTERY_HARD+' hard correct | fail='+GIVE_UP_EASY+' easy wrong.','blue');
+  renderQuestion();
+}
+
+function resetMetrics() {
+  ['m-score','m-streak'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('m-diff').textContent='Easy';
+  document.getElementById('m-acc').textContent='—';
+  ['b-cor','b-dep','b-cla'].forEach(id=>document.getElementById(id).textContent='—');
+  ['bar-cor','bar-dep','bar-cla'].forEach(id=>document.getElementById(id).style.width='0%');
+}
+
+function addLog(msg, cls='') {
+  const now = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  state.log.push({time:now,msg,cls});
+  ['log-entries','full-log'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const div=document.createElement('div');
+    div.className='log-entry';
+    div.innerHTML=`<span class="log-time">${now}</span><span class="log-msg ${cls}">${msg}</span>`;
+    el.appendChild(div);
+    el.scrollTop=el.scrollHeight;
+  });
+}
+
+function shouldStop() {
+  if(state.qIndex>=MAX_Q) return 'Max questions reached ('+MAX_Q+')';
+  if(state.hardCorrect>=MASTERY_HARD) return 'Mastery detected — '+MASTERY_HARD+' correct at hard';
+  if(state.failStreak>=GIVE_UP_EASY && state.difficulty==='easy') return 'Candidate struggling — '+GIVE_UP_EASY+' wrong at easy';
+  return null;
+}
+
+function pickQuestion() {
+  let pool = QUESTIONS[state.difficulty].filter(q=>!state.usedIds.has(q.id));
+  if(!pool.length) {
+    QUESTIONS[state.difficulty].forEach(q=>state.usedIds.delete(q.id));
+    pool = QUESTIONS[state.difficulty];
+  }
+  const q = pool[Math.floor(Math.random()*pool.length)];
+  state.usedIds.add(q.id);
+  return q;
+}
+
+function updateDifficulty(wasCorrect) {
+  const old = state.difficulty;
+  if(wasCorrect) {
+    state.streak++; state.failStreak=0;
+    if(state.difficulty==='hard') state.hardCorrect++;
+  } else {
+    state.failStreak++; state.streak=0;
+  }
+  if(state.streak>=STREAK_UP) {
+    if(old==='easy') state.difficulty='medium';
+    else if(old==='medium') state.difficulty='hard';
+    state.streak=0; state.failStreak=0;
+  } else if(state.failStreak>=STREAK_DOWN) {
+    if(old==='hard') state.difficulty='medium';
+    else if(old==='medium') state.difficulty='easy';
+    state.streak=0; state.failStreak=0;
+  }
+  if(state.difficulty!==old) {
+    const dir = DIFF_ORDER[state.difficulty]>DIFF_ORDER[old] ? '↑ increased':'↓ decreased';
+    addLog('Difficulty '+dir+': '+old+' → '+state.difficulty, state.difficulty==='hard'?'red':state.difficulty==='medium'?'amber':'green');
+  }
+}
+
+function renderQuestion() {
+  const stop = shouldStop();
+  if(stop) { endSession(stop); return; }
+
+  const q = pickQuestion();
+  state.currentQ = q;
+  state.qIndex++;
+  state.asked.push(q);
+
+  addLog('Q'+state.qIndex+' selected ['+state.difficulty+'] — '+q.topic);
+
+  const pct = Math.round((state.qIndex/MAX_Q)*100);
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('q-counter').textContent=state.qIndex+' / '+MAX_Q;
+  document.getElementById('sess-label').textContent='Session · Q'+state.qIndex;
+
+  const badge=document.getElementById('diff-badge');
+  badge.className='diff-badge '+state.difficulty;
+  badge.textContent=state.difficulty;
+  document.getElementById('topic-label').textContent=q.topic;
+  document.getElementById('q-text').textContent=q.text;
+
+  const wrap=document.getElementById('options-wrap');
+  wrap.innerHTML='';
+  q.opts.forEach((o,i)=>{
+    const btn=document.createElement('button');
+    btn.className='opt';
+    btn.innerHTML=`<span class="opt-key">${String.fromCharCode(65+i)}</span>${o}`;
+    btn.onclick=()=>handleAnswer(i);
+    wrap.appendChild(btn);
+  });
+
+  document.getElementById('feedback').className='feedback-box';
+  document.getElementById('feedback').textContent='';
+  document.getElementById('next-btn').classList.remove('show');
+
+  updateAdminMetrics();
+}
+
+function handleAnswer(chosen) {
+  const q=state.currentQ;
+  const btns=document.querySelectorAll('.opt');
+  btns.forEach(b=>b.disabled=true);
+
+  const correct = chosen===q.ans;
+  btns[q.ans].classList.add('correct');
+  if(!correct) btns[chosen].classList.add('wrong');
+
+  const score = correct ? (state.difficulty==='hard'?0.95:state.difficulty==='medium'?0.8:0.75) : Math.random()*0.4;
+  const cor = correct ? score+0.02 : score*0.8;
+  const dep = correct ? score-0.05 : score*0.6;
+  const cla = correct ? score+0.01 : score*0.7;
+  const evalResult = { correctness:Math.min(1,cor), depth:Math.min(1,dep), clarity:Math.min(1,cla), overall:score };
+  state.evals.push(evalResult);
+
+  const fb=document.getElementById('feedback');
+  fb.className='feedback-box show '+(correct?'good':'bad');
+  fb.textContent=(correct?'✓ Correct — ':'✗ Incorrect — ')+q.exp;
+
+  if(correct) {
+    state.score += state.difficulty==='hard'?3:state.difficulty==='medium'?2:1;
+    addLog('Correct +pts | streak='+( state.streak+1), 'green');
+  } else {
+    addLog('Incorrect | fail_streak='+(state.failStreak+1), 'red');
+  }
+
+  addRow(state.qIndex, q.topic, state.difficulty, score);
+  updateDifficulty(correct);
+  updateAdminMetrics();
+  document.getElementById('next-btn').classList.add('show');
+}
+
+function nextQuestion() { renderQuestion(); }
+
+function addRow(n, topic, diff, score) {
+  const tr=document.createElement('tr');
+  const scoreStr=(score*100).toFixed(0)+'%';
+  const cls=score>=THRESHOLD?'green':score>=0.4?'amber':'red';
+  tr.innerHTML=`<td>${n}</td><td>${topic}</td><td>${diff}</td><td style="color:var(--${cls})">${scoreStr}</td>`;
+  document.getElementById('hist-body').appendChild(tr);
+}
+
+function updateAdminMetrics() {
+  document.getElementById('m-score').textContent=state.score;
+  document.getElementById('m-streak').textContent=state.streak;
+  const diffLabel=state.difficulty.charAt(0).toUpperCase()+state.difficulty.slice(1);
+  document.getElementById('m-diff').textContent=diffLabel;
+  document.getElementById('a-diff').textContent=diffLabel;
+  document.getElementById('a-hard').textContent=state.hardCorrect;
+  document.getElementById('a-total').textContent=state.qIndex;
+
+  if(state.evals.length>0){
+    const avg=e=>state.evals.reduce((s,ev)=>s+ev[e],0)/state.evals.length;
+    const oc=avg('correctness'), od=avg('depth'), ocl=avg('clarity'), ov=avg('overall');
+    document.getElementById('m-acc').textContent=(ov*100).toFixed(0)+'%';
+    document.getElementById('a-avg').textContent=(ov*100).toFixed(0)+'%';
+    document.getElementById('b-cor').textContent=(oc*100).toFixed(0)+'%';
+    document.getElementById('b-dep').textContent=(od*100).toFixed(0)+'%';
+    document.getElementById('b-cla').textContent=(ocl*100).toFixed(0)+'%';
+    document.getElementById('bar-cor').style.width=(oc*100)+'%';
+    document.getElementById('bar-dep').style.width=(od*100)+'%';
+    document.getElementById('bar-cla').style.width=(ocl*100)+'%';
+  }
+  updateCharts();
+}
+
+function endSession(reason) {
+  document.getElementById('quiz-wrap').style.display='none';
+  const ended=document.getElementById('ended');
+  ended.classList.add('show');
+  addLog('STOP: '+reason,'amber');
+
+  const avg=state.evals.length ? (state.evals.reduce((s,e)=>s+e.overall,0)/state.evals.length*100).toFixed(0)+'%' : '—';
+  document.getElementById('ended-title').textContent='Session complete';
+  document.getElementById('ended-sub').textContent=reason+' · '+state.qIndex+' questions answered';
+  document.getElementById('final-grid').innerHTML=`
+    <div class="metric"><div class="metric-label">Score</div><div class="metric-val blue">${state.score}</div></div>
+    <div class="metric"><div class="metric-label">Avg</div><div class="metric-val green">${avg}</div></div>
+    <div class="metric"><div class="metric-label">Hard ✓</div><div class="metric-val amber">${state.hardCorrect}</div></div>
+  `;
+  updateCharts();
+}
+
+function updateCharts() {
+  if(!window.Chart) return;
+
+  const labels = state.asked.map((_,i)=>'Q'+(i+1));
+  const diffNums = state.asked.map(q=>DIFF_ORDER[q.difficulty]);
+  const scores = state.evals.map(e=>+(e.overall*100).toFixed(0));
+
+  const chartDefaults = {
+    responsive:true,
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{grid:{color:'#2a2f3d'},ticks:{color:'#6b7280',font:{family:'DM Mono',size:11}}},
+      y:{grid:{color:'#2a2f3d'},ticks:{color:'#6b7280',font:{family:'DM Mono',size:11}}}
+    }
+  };
+
+  if(diffChart) diffChart.destroy();
+  const dc=document.getElementById('diff-chart');
+  if(dc) diffChart=new Chart(dc,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        data:diffNums, borderColor:'#4f9cf9', backgroundColor:'rgba(79,156,249,0.08)',
+        borderWidth:2, pointBackgroundColor:'#4f9cf9', pointRadius:4, tension:0.3, fill:true
+      }]
+    },
+    options:{...chartDefaults, scales:{
+      x:{...chartDefaults.scales.x},
+      y:{...chartDefaults.scales.y, min:0,max:2, ticks:{...chartDefaults.scales.y.ticks, callback:v=>['Easy','Med','Hard'][v]||''}}
+    }}
+  });
+  if(scoreChart) scoreChart.destroy();
+  const sc=document.getElementById('score-chart');
+  if(sc) scoreChart=new Chart(sc,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        data:scores, backgroundColor:scores.map(s=>s>=60?'rgba(62,207,142,0.7)':s>=40?'rgba(245,158,11,0.7)':'rgba(248,113,113,0.7)'),
+        borderRadius:4, borderSkipped:false
+      }]
+    },
+    options:{...chartDefaults, scales:{
+      x:{...chartDefaults.scales.x},
+      y:{...chartDefaults.scales.y, min:0,max:100, ticks:{...chartDefaults.scales.y.ticks, callback:v=>v+'%'}}
+    }}
+  });
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('page-'+tab).classList.add('active');
+  if(tab==='admin') updateCharts();
+}
+
+initSession();
+</script>
+</body>
+</html>
